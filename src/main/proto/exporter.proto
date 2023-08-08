@@ -1,0 +1,16 @@
+syntax = 'proto3';
+package exporter;
+
+option java_package = "io.camunda.zeebe.exporter";
+
+service Exporter {
+  rpc Export(stream Record) returns (stream ExporterAcknowledgment);
+}
+
+message Record {
+  bytes serialized = 1;
+}
+
+message ExporterAcknowledgment {
+  int64 position = 1;
+}
