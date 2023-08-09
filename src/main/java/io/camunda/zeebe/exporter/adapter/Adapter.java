@@ -6,12 +6,10 @@ import io.camunda.zeebe.exporter.ExporterOuterClass;
 import io.camunda.zeebe.exporter.api.Exporter;
 import io.camunda.zeebe.exporter.api.context.Context;
 import io.camunda.zeebe.exporter.api.context.Controller;
-import io.camunda.zeebe.protocol.impl.record.CopiedRecord;
 import io.camunda.zeebe.protocol.record.Record;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import org.agrona.concurrent.UnsafeBuffer;
 
 public final class Adapter implements Exporter {
   private ExporterGrpc.ExporterStub client;
