@@ -12,7 +12,7 @@
         <maven.compiler.source>20</maven.compiler.source>
         <maven.compiler.target>20</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <version.zeebe>8.2.0</version.zeebe>
+        <version.zeebe>8.2.11</version.zeebe>
     </properties>
 
     <dependencyManagement>
