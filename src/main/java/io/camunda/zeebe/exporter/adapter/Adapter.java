@@ -6,22 +6,31 @@ import io.camunda.zeebe.exporter.ExporterOuterClass;
 import io.camunda.zeebe.exporter.api.Exporter;
 import io.camunda.zeebe.exporter.api.context.Context;
 import io.camunda.zeebe.exporter.api.context.Controller;
+import io.camunda.zeebe.protocol.impl.record.CopiedRecord;
 import io.camunda.zeebe.protocol.record.Record;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import org.agrona.concurrent.UnsafeBuffer;
 
-final class Adapter implements Exporter {
-
+public final class Adapter implements Exporter {
   private ExporterGrpc.ExporterStub client;
   private ManagedChannel channel;
   private StreamObserver<ExporterOuterClass.Record> requests;
   private ResponseObserver responses;
   private Controller controller;
 
+  public Adapter(ManagedChannel channel) {
+    this.channel = channel;
+  }
+
+  public Adapter() {}
+
   @Override
   public void configure(Context context) {
-    channel = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
+    if (channel == null) {
+      channel = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
+    }
     client = ExporterGrpc.newStub(channel);
   }
 
@@ -41,8 +50,15 @@ final class Adapter implements Exporter {
 
   @Override
   public void export(Record<?> record) {
-    final var serialized = record.toJson();
-    final var r = ExporterOuterClass.Record.newBuilder().setSerialized(ByteString.copyFromUtf8(serialized)).build();
+    final var typedRecord = (CopiedRecord) record;
+    final var buffer = new UnsafeBuffer(new byte[typedRecord.getValue().getLength()]);
+    typedRecord.getValue().write(buffer, 0);
+    final var r =
+        ExporterOuterClass.Record.newBuilder()
+            .setRecordType(typedRecord.getRecordType().value())
+            .setValueType(typedRecord.getValueType().value())
+            .setSerialized(ByteString.copyFrom(buffer.byteArray()))
+            .build();
     requests.onNext(r);
   }
 

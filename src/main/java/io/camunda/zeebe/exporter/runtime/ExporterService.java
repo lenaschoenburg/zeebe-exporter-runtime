@@ -4,7 +4,7 @@ import io.camunda.zeebe.exporter.ExporterGrpc;
 import io.camunda.zeebe.exporter.ExporterOuterClass;
 import io.grpc.stub.StreamObserver;
 
-final class ExporterService extends ExporterGrpc.ExporterImplBase {
+public final class ExporterService extends ExporterGrpc.ExporterImplBase {
   @Override
   public StreamObserver<ExporterOuterClass.Record> export(
       StreamObserver<ExporterOuterClass.ExporterAcknowledgment> responseObserver) {
