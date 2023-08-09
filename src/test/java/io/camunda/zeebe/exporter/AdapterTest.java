@@ -60,7 +60,7 @@ final class AdapterTest {
     testExporter = new TestExporter();
     server =
         InProcessServerBuilder.forName(serverName)
-            .addService(new ExporterService(List.of(testExporter)))
+            .addService(new ExporterService(List.of(new TestExporterDescriptor(testExporter))))
             .build()
             .start();
     channel = InProcessChannelBuilder.forName(serverName).build();

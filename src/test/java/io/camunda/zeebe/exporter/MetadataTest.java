@@ -21,7 +21,7 @@ final class MetadataTest {
     final var testExporter = new AdapterTest.TestExporter();
     final var server =
         InProcessServerBuilder.forName(serverName)
-            .addService(new ExporterService(List.of(testExporter)))
+            .addService(new ExporterService(List.of(new TestExporterDescriptor(testExporter))))
             .build()
             .start();
     final var channel = InProcessChannelBuilder.forName(serverName).build();
@@ -45,7 +45,7 @@ final class MetadataTest {
     final var testExporter = new AdapterTest.TestExporter();
     final var server =
         InProcessServerBuilder.forName(serverName)
-            .addService(new ExporterService(List.of(testExporter)))
+            .addService(new ExporterService(List.of(new TestExporterDescriptor(testExporter))))
             .build()
             .start();
     final var channel = InProcessChannelBuilder.forName(serverName).build();

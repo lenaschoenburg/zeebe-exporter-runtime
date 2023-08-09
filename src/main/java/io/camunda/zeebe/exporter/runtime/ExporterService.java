@@ -6,7 +6,6 @@ import com.google.protobuf.ByteString;
 import io.camunda.zeebe.exporter.ExporterGrpc;
 import io.camunda.zeebe.exporter.ExporterOuterClass;
 import io.camunda.zeebe.exporter.ExporterOuterClass.ExporterAcknowledgment;
-import io.camunda.zeebe.exporter.api.Exporter;
 import io.camunda.zeebe.protocol.jackson.ZeebeProtocolModule;
 import io.camunda.zeebe.protocol.record.Record;
 import io.grpc.stub.StreamObserver;
@@ -21,28 +20,31 @@ import java.util.stream.Collectors;
 public final class ExporterService extends ExporterGrpc.ExporterImplBase {
 
   private final ObjectMapper mapper;
-  private final Map<String, ExporterContext> contexts;
+  private final Map<String, ExporterContainer> containers;
   private final ScheduledExecutorService executorService;
   private StreamObserver<ExporterAcknowledgment> responseObserver;
 
-  public ExporterService(List<Exporter> exporters) {
+  public ExporterService(List<ExporterDescriptor> exporterDescriptors) {
     mapper = new ObjectMapper().registerModule(new ZeebeProtocolModule());
     executorService = Executors.newSingleThreadScheduledExecutor();
-    contexts =
-        exporters.stream()
-            .map(exporter -> new ExporterContext(executorService, exporter, this::updateExporterPositionAndMetadata))
-            .collect(Collectors.toMap(ExporterContext::getId, Function.identity()));
+    containers =
+        exporterDescriptors.stream()
+            .map(
+                exporter ->
+                    new ExporterContainer(
+                        executorService, this::updateExporterPositionAndMetadata, exporter))
+            .collect(Collectors.toMap(ExporterContainer::getId, Function.identity()));
   }
 
   public void updateExporterPositionAndMetadata() {
     final var newPosition =
-        contexts.values().stream().mapToLong(ExporterContext::getPosition).min().orElseThrow();
+        containers.values().stream().mapToLong(ExporterContainer::getPosition).min().orElseThrow();
     final var metadata =
-        contexts.values().stream()
+        containers.values().stream()
             .collect(
                 Collectors.toMap(
-                    ExporterContext::getId,
-                    (context) -> ByteString.copyFrom(context.getExporterMetadata())));
+                    ExporterContainer::getId,
+                    (context) -> ByteString.copyFrom(context.readMetadata().orElse(new byte[0]))));
 
     responseObserver.onNext(
         ExporterAcknowledgment.newBuilder()
@@ -57,14 +59,11 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
       StreamObserver<ExporterOuterClass.OpenResponse> responseObserver) {
     final var metadata = lastAck.getMetadataMap();
 
-    for (final var entry : metadata.entrySet()) {
-      final var exporterId = entry.getKey();
-      final var exporterMetadata = entry.getValue().toByteArray();
-      final var context = contexts.get(exporterId);
-      context.open(exporterMetadata);
-    }
-    for (final var context : contexts.values()) {
-      context.open(metadata.getOrDefault(context.getId(), ByteString.EMPTY).toByteArray());
+    for (final var container : containers.values()) {
+      final var exporterId = container.getId();
+      final var exporterMetadata =
+          metadata.getOrDefault(exporterId, ByteString.EMPTY).toByteArray();
+      container.open(exporterMetadata);
     }
   }
 
@@ -78,11 +77,10 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
       public void onNext(ExporterOuterClass.Record record) {
         try {
           final Record<?> deserializedRecord =
-              mapper.readValue(
-                  record.getSerialized().toByteArray(), new TypeReference<Record<?>>() {});
+              mapper.readValue(record.getSerialized().toByteArray(), new TypeReference<>() {});
 
           // todo: do we need to have an object for each exporter?
-          contexts.values().forEach(context -> context.export(deserializedRecord));
+          containers.values().forEach(context -> context.export(deserializedRecord));
         } catch (IOException e) {
           // todo: what to do ?
 
