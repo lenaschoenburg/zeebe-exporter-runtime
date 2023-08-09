@@ -13,6 +13,8 @@ import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -20,13 +22,15 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
 
   private final ObjectMapper mapper;
   private final Map<String, ExporterContext> contexts;
+  private final ScheduledExecutorService executorService;
   private StreamObserver<ExporterAcknowledgment> responseObserver;
 
   public ExporterService(List<Exporter> exporters) {
     mapper = new ObjectMapper().registerModule(new ZeebeProtocolModule());
+    executorService = Executors.newSingleThreadScheduledExecutor();
     contexts =
         exporters.stream()
-            .map(exporter -> new ExporterContext(exporter, this::updateExporterPositionAndMetadata))
+            .map(exporter -> new ExporterContext(executorService, exporter, this::updateExporterPositionAndMetadata))
             .collect(Collectors.toMap(ExporterContext::getId, Function.identity()));
   }
 

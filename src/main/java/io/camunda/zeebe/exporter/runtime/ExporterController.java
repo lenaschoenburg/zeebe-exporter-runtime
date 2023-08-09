@@ -4,13 +4,18 @@ import io.camunda.zeebe.exporter.api.context.Controller;
 import io.camunda.zeebe.exporter.api.context.ScheduledTask;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class ExporterController implements Controller {
   private final Consumer<Long> updatePosition;
+  private final ScheduledExecutorService executorService;
   private byte[] metadata;
 
-  public ExporterController(Consumer<Long> updatePosition) {
+  public ExporterController(ScheduledExecutorService executorService, Consumer<Long> updatePosition) {
+    this.executorService = executorService;
     this.updatePosition = updatePosition;
   }
 
@@ -27,7 +32,9 @@ public class ExporterController implements Controller {
 
   @Override
   public ScheduledTask scheduleCancellableTask(Duration delay, Runnable task) {
-    throw new UnsupportedOperationException("Not implemented yet");
+    final var scheduledFuture = executorService.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS);
+
+    return () -> scheduledFuture.cancel(true);
   }
 
   @Override

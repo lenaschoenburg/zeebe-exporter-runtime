@@ -3,16 +3,20 @@ package io.camunda.zeebe.exporter.runtime;
 import io.camunda.zeebe.exporter.api.Exporter;
 import io.camunda.zeebe.protocol.record.Record;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 public class ExporterContext {
   private final Exporter exporter;
   private final Runnable positionUpdateNotification;
   private final ExporterController controller;
+  private final ScheduledExecutorService executorService;
   private long position;
 
-  public ExporterContext(Exporter exporter, Runnable positionUpdateNotification) {
+  public ExporterContext(ScheduledExecutorService executorService, Exporter exporter, Runnable positionUpdateNotification) {
     this.exporter = exporter;
+    this.executorService = executorService;
     this.positionUpdateNotification = positionUpdateNotification;
-    this.controller = new ExporterController(this::updatePosition);
+    this.controller = new ExporterController(executorService, this::updatePosition);
   }
 
   private void updatePosition(Long position) {
