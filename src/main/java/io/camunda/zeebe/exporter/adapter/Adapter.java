@@ -1,6 +1,7 @@
 package io.camunda.zeebe.exporter.adapter;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.camunda.zeebe.exporter.ExporterGrpc;
 import io.camunda.zeebe.exporter.ExporterOuterClass;
 import io.camunda.zeebe.exporter.api.Exporter;
@@ -17,6 +18,7 @@ public final class Adapter implements Exporter {
   private StreamObserver<ExporterOuterClass.Record> requests;
   private ResponseObserver responses;
   private Controller controller;
+  private ExporterOuterClass.ExporterAcknowledgment lastAck;
 
   public Adapter(ManagedChannel channel) {
     this.channel = channel;
@@ -43,6 +45,31 @@ public final class Adapter implements Exporter {
   public void open(Controller controller) {
     this.controller = controller;
     responses = new ResponseObserver();
+    this.lastAck =
+        controller
+            .readMetadata()
+            .map(
+                data -> {
+                  try {
+                    return ExporterOuterClass.ExporterAcknowledgment.parseFrom(data);
+                  } catch (InvalidProtocolBufferException e) {
+                    throw new RuntimeException(e);
+                  }
+                })
+            .orElse(ExporterOuterClass.ExporterAcknowledgment.newBuilder().build());
+
+    client.open(
+        lastAck,
+        new StreamObserver<ExporterOuterClass.OpenResponse>() {
+          @Override
+          public void onNext(ExporterOuterClass.OpenResponse value) {}
+
+          @Override
+          public void onError(Throwable t) {}
+
+          @Override
+          public void onCompleted() {}
+        });
     requests = client.export(responses);
   }
 
@@ -55,11 +82,20 @@ public final class Adapter implements Exporter {
     requests.onNext(r);
   }
 
+  public long getPosition() {
+    return lastAck.getPosition();
+  }
+
+  public ExporterOuterClass.ExporterAcknowledgment getLastAck() {
+    return lastAck;
+  }
+
   private final class ResponseObserver
       implements StreamObserver<ExporterOuterClass.ExporterAcknowledgment> {
     @Override
     public void onNext(ExporterOuterClass.ExporterAcknowledgment value) {
-      controller.updateLastExportedRecordPosition(value.getPosition());
+      lastAck = value;
+      controller.updateLastExportedRecordPosition(value.getPosition(), value.toByteArray());
     }
 
     @Override

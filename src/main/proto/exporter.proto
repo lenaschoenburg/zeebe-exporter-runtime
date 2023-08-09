@@ -4,7 +4,12 @@ package exporter;
 option java_package = "io.camunda.zeebe.exporter";
 
 service Exporter {
+  rpc Open(ExporterAcknowledgment) returns (OpenResponse);
   rpc Export(stream Record) returns (stream ExporterAcknowledgment);
+}
+
+message OpenResponse {
+
 }
 
 message Record {
@@ -13,4 +18,5 @@ message Record {
 
 message ExporterAcknowledgment {
   int64 position = 1;
+  map<string, bytes> metadata = 2;
 }
