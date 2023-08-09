@@ -5,7 +5,7 @@ option java_package = "io.camunda.zeebe.exporter";
 
 service Exporter {
   rpc Open(ExporterAcknowledgment) returns (OpenResponse);
-  rpc Export(stream Record) returns (stream ExporterAcknowledgment);
+  rpc ExportStream(stream Record) returns (stream ExporterAcknowledgment);
 }
 
 message OpenResponse {

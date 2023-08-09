@@ -15,7 +15,7 @@ import io.grpc.stub.StreamObserver;
 public final class Adapter implements Exporter {
   private ExporterGrpc.ExporterStub client;
   private ManagedChannel channel;
-  private StreamObserver<ExporterOuterClass.Record> requests;
+  private StreamObserver<ExporterOuterClass.Record> exportStream;
   private ResponseObserver responses;
   private Controller controller;
   private ExporterOuterClass.ExporterAcknowledgment lastAck;
@@ -37,7 +37,7 @@ public final class Adapter implements Exporter {
   @Override
   public void close() {
     channel.shutdown();
-    requests.onCompleted();
+    exportStream.onCompleted();
     responses.onCompleted();
   }
 
@@ -70,7 +70,7 @@ public final class Adapter implements Exporter {
           @Override
           public void onCompleted() {}
         });
-    requests = client.export(responses);
+    exportStream = client.exportStream(responses);
   }
 
   @Override
@@ -79,7 +79,7 @@ public final class Adapter implements Exporter {
         ExporterOuterClass.Record.newBuilder()
             .setSerialized(ByteString.copyFromUtf8(record.toJson()))
             .build();
-    requests.onNext(r);
+    exportStream.onNext(r);
   }
 
   public long getPosition() {

@@ -65,7 +65,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
   }
 
   @Override
-  public StreamObserver<ExporterOuterClass.Record> export(
+  public StreamObserver<ExporterOuterClass.Record> exportStream(
       StreamObserver<ExporterAcknowledgment> responseObserver) {
     this.responseObserver = responseObserver;
 
