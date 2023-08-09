@@ -8,9 +8,7 @@ service Exporter {
 }
 
 message Record {
-  uint32 recordType = 1;
-  uint32 valueType = 2;
-  bytes serialized = 3;
+  bytes serialized = 1;
 }
 
 message ExporterAcknowledgment {

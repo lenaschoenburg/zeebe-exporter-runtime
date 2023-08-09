@@ -50,14 +50,9 @@ public final class Adapter implements Exporter {
 
   @Override
   public void export(Record<?> record) {
-    final var typedRecord = (CopiedRecord) record;
-    final var buffer = new UnsafeBuffer(new byte[typedRecord.getValue().getLength()]);
-    typedRecord.getValue().write(buffer, 0);
     final var r =
         ExporterOuterClass.Record.newBuilder()
-            .setRecordType(typedRecord.getRecordType().value())
-            .setValueType(typedRecord.getValueType().value())
-            .setSerialized(ByteString.copyFrom(buffer.byteArray()))
+            .setSerialized(ByteString.copyFromUtf8(record.toJson()))
             .build();
     requests.onNext(r);
   }
