@@ -4,7 +4,6 @@ import io.camunda.zeebe.exporter.api.Exporter;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.util.*;
-import org.jetbrains.annotations.NotNull;
 
 public class Runtime {
   public static void main(String[] args)
@@ -17,7 +16,6 @@ public class Runtime {
     server.awaitTermination();
   }
 
-  @NotNull
   private static LinkedList<ExporterDescriptor> buildExporterDescriptors(
       Map<String, Object> configuration) throws ClassNotFoundException {
     final var descriptors = new LinkedList<ExporterDescriptor>();
