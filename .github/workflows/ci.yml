@@ -24,6 +24,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions: write-all
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-java@v3
