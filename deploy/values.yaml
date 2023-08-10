@@ -45,7 +45,7 @@ global:
 # Worker configuration for the to be deployed worker application
 worker:
   # Worker.replicas defines how many replicas of the worker application should be deployed
-  replicas: 3
+  replicas: 1
   # Worker.capacity defines how many jobs the worker should activate and work on
   capacity: 60
 
@@ -54,7 +54,7 @@ starter:
   # Starter.replicas defines how many replicas of the application should be deployed
   replicas: 1
   # Starter.rate defines with which rate process instances should be created by the starter
-  rate: 150
+  rate: 10
 
 # Publisher configuration for the to be deployed publisher application
 publisher:
@@ -106,11 +106,11 @@ camunda-platform:
       repository: camunda/zeebe
       tag: 8.2.0
     # ClusterSize defines the amount of brokers (=replicas), which are deployed via helm
-    clusterSize: "3"
+    clusterSize: "1"
     # PartitionCount defines how many zeebe partitions are set up in the cluster
-    partitionCount: "3"
+    partitionCount: "1"
     # ReplicationFactor defines how each partition is replicated, the value defines the number of nodes
-    replicationFactor: "3"
+    replicationFactor: "1"
 
     # CpuThreadCount defines how many threads can be used for the processing on each broker pod
     cpuThreadCount: 3
@@ -217,7 +217,7 @@ camunda-platform:
 
   zeebe-gateway:
     # Replicas defines how many standalone gateways are deployed
-    replicas: 2
+    replicas: 1
 
     # Image configuration to configure the zeebe-gateway image specifics
     image:
@@ -303,15 +303,15 @@ camunda-platform:
     # RetentionPolicy.schedule defines how often/when the curator should run
     schedule: "*/15 * * * *"
     # RetentionPolicy.zeebeIndexTTL defines after how many days a zeebe index can be deleted
-    zeebeIndexTTL: 1
+    zeebeIndexTTL: 2
     # RetentionPolicy.zeebeIndexMaxSize can be set to configure the maximum allowed zeebe index size in gigabytes.
     # After reaching that size, curator will delete that corresponding index on the next run.
     # To benefit from that configuration the schedule needs to be configured small enough, like every 15 minutes.
-    zeebeIndexMaxSize: 1
+    zeebeIndexMaxSize: 50
     # RetentionPolicy.operateIndexTTL defines after how many days an operate index can be deleted
-    operateIndexTTL: 30
+    operateIndexTTL: 1
     # RetentionPolicy.tasklistIndexTTL defines after how many days a tasklist index can be deleted
-    tasklistIndexTTL: 30
+    tasklistIndexTTL: 1
 
     # Image configuration for the elasticsearch curator cronjob
     # https://hub.docker.com/r/bitnami/elasticsearch-curator-archived/tags
@@ -324,7 +324,26 @@ camunda-platform:
       tag: 5.8.4
 
   operate:
-    enabled: false
+    enabled: true
+    image:
+      tag: 8.2.0
+    # Resources configuration to set request and limit configuration for the container https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#requests-and-limits
+    resources:
+      requests:
+        cpu: 600m
+        memory: 400Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+    env:
+      - name: OPERATE_LOG_APPENDER
+        value: Stackdriver
+      - name: OPERATE_LOG_STACKDRIVER_SERVICENAME
+        value: operate
+      - name: OPERATE_LOG_STACKDRIVER_SERVICEVERSION
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
 
   tasklist:
     enabled: false
@@ -349,15 +368,14 @@ camunda-platform:
     enabled: true
     imageTag: 7.16.2
 
-    replicas: 3
-    minimumMasterNodes: 2
+    replicas: 1
 
     volumeClaimTemplate:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: "ssd"
       resources:
         requests:
-          storage: 16Gi
+          storage: 64Gi
 
     esJavaOpts: "-Xmx3g -Xms3g"
 
