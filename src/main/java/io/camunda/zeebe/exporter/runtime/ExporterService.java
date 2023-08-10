@@ -61,8 +61,11 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
 
     for (final var container : containers.values()) {
       final var exporterId = container.getId();
-      final var exporterMetadata =
-          metadata.getOrDefault(exporterId, ByteString.EMPTY).toByteArray();
+      final var bytes = metadata.get(exporterId);
+      byte[] exporterMetadata = null;
+      if (bytes != null) {
+        exporterMetadata = bytes.toByteArray();
+      }
       container.open(exporterMetadata);
     }
   }

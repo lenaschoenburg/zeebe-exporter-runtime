@@ -22,12 +22,20 @@ public class ConfigurationTest {
   @Test
   void shouldReadMultipleEnvVars() {
     // given
-    final var env = Map.of("ZEEBE_BROKER_EXPORTERS_TESTEXPORTER_SOMETHING_TEST", "1234", "ZEEBE_BROKER_EXPORTERS_TESTEXPORTER_OTHER_TEST", "5678");
+    final var env =
+        Map.of(
+            "ZEEBE_BROKER_EXPORTERS_TESTEXPORTER_SOMETHING_TEST",
+            "1234",
+            "ZEEBE_BROKER_EXPORTERS_TESTEXPORTER_OTHER_TEST",
+            "5678");
 
     // when
     final var config = parseConfiguration(env);
 
     // then
-    assertThat(config).containsEntry("testexporter", Map.of("something", Map.of("test", "1234"), "other", Map.of("test", "5678")));
+    assertThat(config)
+        .containsEntry(
+            "testexporter",
+            Map.of("something", Map.of("test", "1234"), "other", Map.of("test", "5678")));
   }
 }
