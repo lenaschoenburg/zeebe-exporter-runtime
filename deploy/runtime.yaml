@@ -27,7 +27,7 @@ spec:
             - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME
               value: io.camunda.zeebe.exporter.ElasticsearchExporter
             - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL
-              value: http://elasticsearch:9200
+              value: http://elasticsearch-master:9200
       restartPolicy: Always
 ---
 kind: Service
