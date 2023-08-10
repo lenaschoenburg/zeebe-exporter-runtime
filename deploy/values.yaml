@@ -32,7 +32,7 @@ global:
     # Image.repository defines the repository from which to fetch the docker images
     repository: "gcr.io/zeebe-io"
     # Image.tag defines the tag / version which should be used in the chart
-    tag: SNAPSHOT
+    tag: 8.2.0
     # Image.pullPolicy defines the image pull policy which should be used https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: Always
   # Disable Identity completely; both this flag and `camunda-platform.identity.enabled` are required.
@@ -98,10 +98,6 @@ zeebe:
 
 camunda-platform:
   enabled: true
-  global:
-    image:
-      tag: SNAPSHOT
-      pullPolicy: Always
 
   zeebe:
     # Image configuration to configure the zeebe image specifics
