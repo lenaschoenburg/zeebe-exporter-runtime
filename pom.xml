@@ -31,7 +31,6 @@
             <groupId>io.camunda</groupId>
             <artifactId>zeebe-exporter-api</artifactId>
             <version>${version.zeebe}</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.camunda</groupId>
