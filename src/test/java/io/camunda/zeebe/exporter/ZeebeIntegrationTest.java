@@ -1,12 +1,12 @@
 package io.camunda.zeebe.exporter;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.camunda.zeebe.client.ZeebeClient;
 import io.camunda.zeebe.model.bpmn.Bpmn;
 import io.zeebe.containers.ZeebeContainer;
-
 import java.io.IOException;
 import java.nio.file.Path;
-
 import org.apache.http.HttpHost;
 import org.awaitility.Awaitility;
 import org.elasticsearch.client.Request;
@@ -24,8 +24,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 public class ZeebeIntegrationTest {
@@ -74,34 +72,34 @@ public class ZeebeIntegrationTest {
   @Test
   void shouldStartZeebe() throws IOException {
     // given
-    final var elasticClient = RestClient.builder(HttpHost.create(elasticSearch.getHttpHostAddress())).build();
+    final var elasticClient =
+        RestClient.builder(HttpHost.create(elasticSearch.getHttpHostAddress())).build();
     Response healthResponse = elasticClient.performRequest(new Request("GET", "/_cluster/health"));
     assertThat(healthResponse.getStatusLine().getStatusCode()).isEqualTo(200);
 
     // when
     try (var client =
-                 ZeebeClient.newClientBuilder()
-                         .usePlaintext()
-                         .gatewayAddress(zeebe.getExternalGatewayAddress())
-                         .usePlaintext()
-                         .build()) {
+        ZeebeClient.newClientBuilder()
+            .usePlaintext()
+            .gatewayAddress(zeebe.getExternalGatewayAddress())
+            .usePlaintext()
+            .build()) {
       client
-              .newDeployResourceCommand()
-              .addProcessModel(
-                      Bpmn.createExecutableProcess().startEvent().endEvent().done(), "simple.bpmn")
-              .send()
-              .join();
+          .newDeployResourceCommand()
+          .addProcessModel(
+              Bpmn.createExecutableProcess().startEvent().endEvent().done(), "simple.bpmn")
+          .send()
+          .join();
     }
 
     // then
     Awaitility.await("Indices exist")
-            .ignoreExceptions()
-            .until(
-                    () -> {
-                      Response response = elasticClient.performRequest(new Request("GET", "/_cat/indices"));
-                      return new String(response.getEntity().getContent().readAllBytes());
-                    },
-                    Matchers.containsString("zeebe-record_process_"));
-
+        .ignoreExceptions()
+        .until(
+            () -> {
+              Response response = elasticClient.performRequest(new Request("GET", "/_cat/indices"));
+              return new String(response.getEntity().getContent().readAllBytes());
+            },
+            Matchers.containsString("zeebe-record_process_"));
   }
 }
