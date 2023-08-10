@@ -11,14 +11,17 @@ import io.camunda.zeebe.protocol.record.Record;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class Adapter implements Exporter {
-  private ExporterGrpc.ExporterStub client;
+  private static final Logger LOG = LoggerFactory.getLogger(Adapter.class);
   private ManagedChannel channel;
   private StreamObserver<ExporterOuterClass.Record> exportStream;
   private ResponseObserver responses;
   private Controller controller;
   private ExporterOuterClass.ExporterAcknowledgment lastAck;
+  private Context context;
 
   public Adapter(ManagedChannel channel) {
     this.channel = channel;
@@ -28,14 +31,8 @@ public final class Adapter implements Exporter {
 
   @Override
   public void configure(Context context) {
-    if (channel == null) {
-      final var arguments = context.getConfiguration().getArguments();
-      channel =
-          ManagedChannelBuilder.forTarget(arguments.get("target").toString())
-              .usePlaintext()
-              .build();
-    }
-    client = ExporterGrpc.newStub(channel);
+    LOG.info("Configuring adapter: {}", context.getConfiguration());
+    this.context = context;
   }
 
   @Override
@@ -47,6 +44,15 @@ public final class Adapter implements Exporter {
 
   @Override
   public void open(Controller controller) {
+    if (channel == null) {
+      final var arguments = context.getConfiguration().getArguments();
+      channel =
+          ManagedChannelBuilder.forTarget(arguments.get("target").toString())
+              .usePlaintext()
+              .build();
+    }
+    ExporterGrpc.ExporterStub client = ExporterGrpc.newStub(channel);
+
     this.controller = controller;
     responses = new ResponseObserver();
     this.lastAck =
