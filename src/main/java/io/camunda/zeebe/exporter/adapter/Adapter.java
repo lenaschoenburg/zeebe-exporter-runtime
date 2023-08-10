@@ -46,10 +46,9 @@ public final class Adapter implements Exporter {
   public void open(Controller controller) {
     if (channel == null) {
       final var arguments = context.getConfiguration().getArguments();
-      channel =
-          ManagedChannelBuilder.forTarget(arguments.get("target").toString())
-              .usePlaintext()
-              .build();
+      String target = arguments.get("target").toString();
+      LOG.info("Open channel for target '{}'", target);
+      channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
     }
     ExporterGrpc.ExporterStub client = ExporterGrpc.newStub(channel);
 
@@ -68,11 +67,15 @@ public final class Adapter implements Exporter {
                 })
             .orElse(ExporterOuterClass.ExporterAcknowledgment.newBuilder().build());
 
+    LOG.info("Read lastAck '{}'", lastAck);
+
     client.open(
         lastAck,
         new StreamObserver<ExporterOuterClass.OpenResponse>() {
           @Override
-          public void onNext(ExporterOuterClass.OpenResponse value) {}
+          public void onNext(ExporterOuterClass.OpenResponse value) {
+            LOG.info("Send successful open request");
+          }
 
           @Override
           public void onError(Throwable t) {}
@@ -89,6 +92,7 @@ public final class Adapter implements Exporter {
         ExporterOuterClass.Record.newBuilder()
             .setSerialized(ByteString.copyFromUtf8(record.toJson()))
             .build();
+    LOG.info("Export next record '{}' and send to export stream", r);
     exportStream.onNext(r);
   }
 
@@ -104,6 +108,7 @@ public final class Adapter implements Exporter {
       implements StreamObserver<ExporterOuterClass.ExporterAcknowledgment> {
     @Override
     public void onNext(ExporterOuterClass.ExporterAcknowledgment value) {
+      LOG.info("Received ack '{}' from exporter stream", value);
       lastAck = value;
       controller.updateLastExportedRecordPosition(value.getPosition(), value.toByteArray());
     }

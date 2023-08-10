@@ -16,8 +16,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class ExporterService extends ExporterGrpc.ExporterImplBase {
+  private static final Logger LOG = LoggerFactory.getLogger(Runtime.class);
 
   private final ObjectMapper mapper;
   private final Map<String, ExporterContainer> containers;
@@ -57,6 +60,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
   public void open(
       ExporterAcknowledgment lastAck,
       StreamObserver<ExporterOuterClass.OpenResponse> responseObserver) {
+    LOG.info("Received openRequest with lastAck: '{}'", lastAck);
     final var metadata = lastAck.getMetadataMap();
 
     for (final var container : containers.values()) {
@@ -67,17 +71,23 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
         exporterMetadata = bytes.toByteArray();
       }
       container.open(exporterMetadata);
+      LOG.info("Opened exporter with id: '{}'", exporterId);
     }
+
+    LOG.info("Send response for open request.");
+    responseObserver.onNext(ExporterOuterClass.OpenResponse.newBuilder().build());
   }
 
   @Override
   public StreamObserver<ExporterOuterClass.Record> exportStream(
       StreamObserver<ExporterAcknowledgment> responseObserver) {
+    LOG.info("Export stream has initiated");
     this.responseObserver = responseObserver;
 
     return new StreamObserver<>() {
       @Override
       public void onNext(ExporterOuterClass.Record record) {
+        LOG.info("Received new record '{}' to export via export stream", record);
         try {
           final Record<?> deserializedRecord =
               mapper.readValue(record.getSerialized().toByteArray(), new TypeReference<>() {});

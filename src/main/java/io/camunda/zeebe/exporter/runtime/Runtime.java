@@ -4,15 +4,22 @@ import io.camunda.zeebe.exporter.api.Exporter;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Runtime {
+  private static final Logger LOG = LoggerFactory.getLogger(Runtime.class);
+  public static final int PORT = 8080;
+
   public static void main(String[] args)
       throws InterruptedException, IOException, ClassNotFoundException {
     final Map<String, Object> configuration = parseConfiguration(System.getenv());
+    LOG.info("Parsed configuration for exporters {}", configuration);
     final var descriptors = buildExporterDescriptors(configuration);
     final var server =
-        ServerBuilder.forPort(8080).addService(new ExporterService(descriptors)).build();
+        ServerBuilder.forPort(PORT).addService(new ExporterService(descriptors)).build();
     server.start();
+    LOG.info("Started exporter runtime on port {}", PORT);
     server.awaitTermination();
   }
 
