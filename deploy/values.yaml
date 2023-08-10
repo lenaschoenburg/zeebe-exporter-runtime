@@ -1,0 +1,379 @@
+# Default values for Zeebe Benchmark Helm chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# The values file follows helm best practices https://helm.sh/docs/chart_best_practices/values/
+#
+# This means:
+#   * Variable names should begin with a lowercase letter, and words should be separated with camelcase.
+#   * Every defined property in values.yaml should be documented. The documentation string should begin with the name of the property that it describes, and then give at least a one-sentence description
+#
+# Furthermore, we try to apply the following pattern: # [VarName] [conjunction] [definition]
+#
+# VarName:
+#
+#  * In the documentation the variable name is started with a big letter, similar to kubernetes resource documentation.
+#  * If the variable is part of a subsection/object we use a json path expression (to make it more clear where the variable belongs to).
+#    The root (chart name) is omitted (e.g. zeebe). This is useful for using --set in helm.
+#
+# Conjunction:
+#   * [defines] for mandatory configuration
+#   * [can be used] for optional configuration
+#   * [if true] for toggles
+#   * [configuration] for section/group of variables
+
+# Global configuration for variables which can be accessed by all sub charts
+global:
+  # Disable global ingress
+  ingress:
+    enabled: false
+  # Image configuration to be used in each sub chart
+  image:
+    # Image.repository defines the repository from which to fetch the docker images
+    repository: "gcr.io/zeebe-io"
+    # Image.tag defines the tag / version which should be used in the chart
+    tag: SNAPSHOT
+    # Image.pullPolicy defines the image pull policy which should be used https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
+    pullPolicy: Always
+  # Disable Identity completely; both this flag and `camunda-platform.identity.enabled` are required.
+  identity:
+    auth:
+      enabled: false
+  elasticsearch:
+    disableExporter: true
+
+# Worker configuration for the to be deployed worker application
+worker:
+  # Worker.replicas defines how many replicas of the worker application should be deployed
+  replicas: 3
+  # Worker.capacity defines how many jobs the worker should activate and work on
+  capacity: 60
+
+# Starter configuration for the to be deployed starter application
+starter:
+  # Starter.replicas defines how many replicas of the application should be deployed
+  replicas: 1
+  # Starter.rate defines with which rate process instances should be created by the starter
+  rate: 150
+
+# Publisher configuration for the to be deployed publisher application
+publisher:
+  # Publisher.replicas defines how many replicas of the application should be deployed
+  replicas: 0
+  # Publisher.rate defines with which rate message should be published
+  rate: 25
+
+# Timer configuration for the to be deployed timer application
+timer:
+  # Timer.replicas defines how many replicas of the application should be deployed
+  replicas: 0
+  # Timer.rate defines with which rate process instances with timers should be created
+  rate: 25
+
+# LeaderBalanacing configuration for the auto rebalancing feature, which allows to rebalance periodically the zeebe cluster
+# For more details see https://docs.camunda.io/docs/self-managed/zeebe-deployment/operations/rebalancing/
+leaderBalancing:
+  # LeaderBalancing.enabled if true, enables the auto leader rebalancing
+  enabled: true
+  # LeaderBalancing.schedule defines the schedule of the auto leader rebalancing feature.
+  schedule: "*/15 * * * *"
+
+# Zeebe configuration to configure Zeebe and Gateway
+zeebe:
+  # Zeebe.config can be used to configure Zeebe Broker and Gateway additional without the need of overwriting all
+  # environment variables from the dependency chart.
+  # Allows to set configurations via --set, like --set zeebe.config.zeebe.broker.cluster.replicationFactor=3
+  config:
+    zeebe.gateway.monitoring.enabled: "true"
+    zeebe.gateway.threads.managementThreads: "1"
+    zeebe.broker.experimental.consistencyChecks.enablePreconditions: "true"
+    zeebe.broker.experimental.consistencyChecks.enableForeignKeyChecks: "true"
+    zeebe.broker.executionMetricsExporterEnabled: "true"
+    zeebe.broker.data.diskUsageCommandWatermark: "0.8"
+    zeebe.broker.data.diskUsageReplicationWatermark: "0.9"
+  # Zeebe.profiling configuration for pyroscope profiling
+  profiling:
+    # Zeebe.profiling.enabled if true, enables the pyroscope profiling
+    enabled: false
+
+camunda-platform:
+  enabled: true
+  global:
+    image:
+      tag: SNAPSHOT
+      pullPolicy: Always
+
+  zeebe:
+    # Image configuration to configure the zeebe image specifics
+    image:
+      # Image.repository defines which image repository to use
+      repository: camunda/zeebe
+    # ClusterSize defines the amount of brokers (=replicas), which are deployed via helm
+    clusterSize: "3"
+    # PartitionCount defines how many zeebe partitions are set up in the cluster
+    partitionCount: "3"
+    # ReplicationFactor defines how each partition is replicated, the value defines the number of nodes
+    replicationFactor: "3"
+
+    # CpuThreadCount defines how many threads can be used for the processing on each broker pod
+    cpuThreadCount: 3
+    # IoThreadCount defines how many threads can be used for the exporting on each broker pod
+    ioThreadCount: 3
+
+    # PodSecurityContext defines the security options the Zeebe broker pod should be run with
+    podSecurityContext:
+      # needed to make sure the zeebe user has file permissions on mounted PVCs
+      # TODO remove once it's configured in the upstream helmchart
+      fsGroup: 1000
+
+    # ContainerSecurityContext defines the security options the Zeebe broker container should be run with
+    containerSecurityContext:
+      capabilities:
+        add: [ "NET_ADMIN" ]
+
+    # JavaOpts can be used to set java options for the zeebe brokers
+    javaOpts: >-
+      -XX:MaxRAMPercentage=25.0
+      -XX:+ExitOnOutOfMemoryError
+      -XX:+HeapDumpOnOutOfMemoryError
+      -XX:HeapDumpPath=/usr/local/zeebe/data
+      -XX:ErrorFile=/usr/local/zeebe/data/zeebe_error%p.log
+      -Xlog:gc*:file=/usr/local/zeebe/data/gc.log:time:filecount=7,filesize=8M
+
+    # Zeebe config
+    extraVolumes:
+      - name: zeebe-config
+        configMap:
+          name: zeebe-config
+          defaultMode: 0754
+      - name: pyroscope
+        emptyDir: {}
+
+    extraVolumeMounts:
+      - name: zeebe-config
+        mountPath: /usr/local/zeebe/config/application.yaml
+        subPath: application.yml
+
+    extraInitContainers:
+      - name: init-exporters-exporterservice
+        image: busybox:1.35
+        command: ['/bin/sh', '-c']
+        args: ['wget --no-check-certificate https://github.com/oleschoenburg/zeebe-exporter-runtime/releases/latest/download/zeebe-exporter-runtime-1.0-SNAPSHOT-jar-with-dependencies.jar -O /exporters/zeebe-exporter-adapter.jar; ls -al /exporters']
+        volumeMounts:
+          - name: exporters
+            mountPath: /exporters/
+
+    # Environment variables
+    env:
+      - name: K8S_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: K8S_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      # Enable JSON logging for google cloud stackdriver
+      - name: ZEEBE_LOG_APPENDER
+        value: Stackdriver
+      - name: ZEEBE_LOG_STACKDRIVER_SERVICENAME
+        value: zeebe
+      - name: ZEEBE_LOG_STACKDRIVER_SERVICEVERSION
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: ATOMIX_LOG_LEVEL
+        value: INFO
+      - name: ZEEBE_LOG_LEVEL
+        value: DEBUG
+      - name: JAVA_OPTS
+        valueFrom:
+          configMapKeyRef:
+            name: zeebe-config
+            key: java-opts
+            optional: true
+      - name: ZEEBE_BROKER_EXPORTERS_ADAPTER_JARPATH
+        value: /exporters/zeebe-exporter-adapter.jar
+      - name: ZEEBE_BROKER_EXPORTERS_ADAPTER_CLASSNAME
+        value: io.camunda.zeebe.exporter.adapter.Adapter
+      - name: ZEEBE_BROKER_EXPORTERS_ADAPTER_ARGS_TARGET
+        value: "zeebe-exporter-runtime:8080"
+
+    # Resources configuration to set request and limit configuration for the container https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#requests-and-limitsS
+    resources:
+      limits:
+        cpu: 1350m
+        memory: 4Gi
+      requests:
+        cpu: 1350m
+        memory: 2Gi
+
+    nodeSelector:
+      cloud.google.com/gke-nodepool: n2-standard-2
+
+    # PvcAccessModes can be used to configure the persistent volume claim access mode https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes
+    pvcAccessMode: [ "ReadWriteOnce" ]
+    # PvcSize defines the persistent volume claim size, which is used by each broker pod https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims
+    pvcSize: 32Gi
+    # PvcStorageClassName can be used to set the storage class name which should be used by the persistent volume claim. It is recommended to use a storage class, which is backed with a SSD.
+    pvcStorageClassName: ssd
+
+  zeebe-gateway:
+    # Replicas defines how many standalone gateways are deployed
+    replicas: 2
+
+    # Image configuration to configure the zeebe-gateway image specifics
+    image:
+      # Image.repository defines which image repository to use
+      repository: camunda/zeebe
+    # LogLevel defines the log level which is used by the gateway
+    logLevel: debug
+
+    extraVolumes:
+      - name: zeebe-config
+        configMap:
+          name: zeebe-config
+          defaultMode: 0754
+      - name: pyroscope
+        emptyDir: {}
+
+    extraVolumeMounts:
+      - name: pyroscope
+        mountPath: /pyroscope
+      - name: zeebe-config
+        mountPath: /usr/local/zeebe/config/application.yaml
+        subPath: application.yml
+
+    extraInitContainers:
+      - name: pyroscope
+        image: alpine
+        command: ['wget', 'https://github.com/pyroscope-io/pyroscope-java/releases/latest/download/pyroscope.jar', '-O', '/pyroscope/pyroscope.jar']
+        volumeMounts:
+          - name: pyroscope
+            mountPath: /pyroscope
+
+    # Env can be used to set extra environment variables in each gateway container
+    env:
+      - name: ZEEBE_LOG_APPENDER
+        value: Stackdriver
+      - name: ZEEBE_LOG_STACKDRIVER_SERVICENAME
+        value: zeebe
+      - name: ZEEBE_LOG_STACKDRIVER_SERVICEVERSION
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: ATOMIX_LOG_LEVEL
+        value: INFO
+      - name: ZEEBE_LOG_LEVEL
+        value: DEBUG
+      - name: PYROSCOPE_SERVER_ADDRESS
+        value: "http://pyroscope.pyroscope.svc.cluster.local:4040"
+      - name: PYROSCOPE_APPLICATION_NAME
+        value: "io.camunda.zeebe.gateway"
+      - name: PYROSCOPE_LOG_LEVEL
+        value: "debug"
+      - name: PYROSCOPE_FORMAT
+        value: "jfr"
+      - name: PYROSCOPE_PROFILER_EVENT
+        value: "cpu"
+      - name: PYROSCOPE_PROFILER_ALLOC
+        value: "0"
+      - name: PYROSCOPE_PROFILER_LOCK
+        value: "0"
+      - name: PYROSCOPE_LABELS
+        value: "namespace=$(K8S_NAMESPACE), pod=$(K8S_NAME)"
+      - name: JAVA_OPTS
+        valueFrom:
+          configMapKeyRef:
+            name: zeebe-config
+            key: java-opts
+            optional: true
+
+    # Resources configuration to set request and limit configuration for the container https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#requests-and-limits
+    resources:
+      limits:
+        cpu: 450m
+        memory: 400Mi
+      requests:
+        cpu: 450m
+        memory: 400Mi
+
+  # RetentionPolicy configuration to configure the elasticsearch index retention policies
+  retentionPolicy:
+    # RetentionPolicy.enabled if true, elasticsearch curator cronjob and configuration will be deployed.
+    enabled: true
+    # RetentionPolicy.schedule defines how often/when the curator should run
+    schedule: "*/15 * * * *"
+    # RetentionPolicy.zeebeIndexTTL defines after how many days a zeebe index can be deleted
+    zeebeIndexTTL: 1
+    # RetentionPolicy.zeebeIndexMaxSize can be set to configure the maximum allowed zeebe index size in gigabytes.
+    # After reaching that size, curator will delete that corresponding index on the next run.
+    # To benefit from that configuration the schedule needs to be configured small enough, like every 15 minutes.
+    zeebeIndexMaxSize: 1
+    # RetentionPolicy.operateIndexTTL defines after how many days an operate index can be deleted
+    operateIndexTTL: 30
+    # RetentionPolicy.tasklistIndexTTL defines after how many days a tasklist index can be deleted
+    tasklistIndexTTL: 30
+
+    # Image configuration for the elasticsearch curator cronjob
+    # https://hub.docker.com/r/bitnami/elasticsearch-curator-archived/tags
+    image:
+      # Image.registry can be used to set container image registry.
+      registry: ""
+      # Image.repository defines which image repository to use
+      repository: "bitnami/elasticsearch-curator-archived"
+      # Image.tag defines the tag / version which should be used in the chart
+      tag: 5.8.4
+
+  operate:
+    enabled: false
+
+  tasklist:
+    enabled: false
+
+  identity:
+    enabled: false
+
+  optimize:
+    enabled: false
+
+  connectors:
+    enabled: false
+
+  webModeler:
+    enabled: false
+
+  postgresql:
+    enabled: false
+
+  # ELASTIC
+  elasticsearch:
+    enabled: true
+    imageTag: 7.16.2
+
+    replicas: 3
+    minimumMasterNodes: 2
+
+    volumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "ssd"
+      resources:
+        requests:
+          storage: 16Gi
+
+    esJavaOpts: "-Xmx3g -Xms3g"
+
+    resources:
+      requests:
+        cpu: 1
+        memory: 3Gi
+      limits:
+        cpu: 2
+        memory: 6Gi
+
+  # Change these settings to configure a different way to collect metrics
+  prometheusServiceMonitor:
+    enabled: true
+    labels:
+      release: monitoring
+    scrapeInterval: 30s
