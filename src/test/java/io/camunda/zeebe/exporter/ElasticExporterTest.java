@@ -1,5 +1,7 @@
 package io.camunda.zeebe.exporter;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.camunda.zeebe.exporter.adapter.Adapter;
 import io.camunda.zeebe.exporter.runtime.ExporterDescriptor;
 import io.camunda.zeebe.exporter.runtime.ExporterService;
@@ -12,13 +14,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.http.HttpHost;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.camunda.community.eze.EngineFactory;
 import org.camunda.community.eze.ZeebeEngine;
@@ -34,8 +30,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 @Testcontainers
 public class ElasticExporterTest {
 
@@ -47,8 +41,7 @@ public class ElasticExporterTest {
   @Container
   ElasticsearchContainer container =
       new ElasticsearchContainer(
-          DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
-              .withTag("7.16.2"));
+          DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch").withTag("7.16.2"));
 
   private RestClient client;
 
@@ -56,9 +49,7 @@ public class ElasticExporterTest {
   void setup() throws IOException {
 
     // elastic
-    client =
-        RestClient.builder(HttpHost.create(container.getHttpHostAddress()))
-            .build();
+    client = RestClient.builder(HttpHost.create(container.getHttpHostAddress())).build();
     Response response = client.performRequest(new Request("GET", "/_cluster/health"));
     assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
 
@@ -96,19 +87,22 @@ public class ElasticExporterTest {
 
     // when
     try (final var client = engine.createClient()) {
-      client.newDeployResourceCommand()
-              .addProcessModel(
-                      Bpmn.createExecutableProcess()
-                              .startEvent()
-                              .endEvent()
-                              .done(), "simple.bpmn")
-              .send().join();
+      client
+          .newDeployResourceCommand()
+          .addProcessModel(
+              Bpmn.createExecutableProcess().startEvent().endEvent().done(), "simple.bpmn")
+          .send()
+          .join();
     }
 
     // then
-    Awaitility.await("Indices exist").ignoreExceptions().until(() -> {
+    Awaitility.await("Indices exist")
+        .ignoreExceptions()
+        .until(
+            () -> {
               Response response = client.performRequest(new Request("GET", "/_cat/indices"));
               return new String(response.getEntity().getContent().readAllBytes());
-    }, Matchers.containsString("zeebe-record_process_"));
+            },
+            Matchers.containsString("zeebe-record_process_"));
   }
 }
