@@ -158,7 +158,7 @@ camunda-platform:
       - name: init-exporters-exporterservice
         image: busybox:1.35
         command: ['/bin/sh', '-c']
-        args: ['wget --no-check-certificate https://github.com/oleschoenburg/zeebe-exporter-runtime/releases/latest/download/zeebe-exporter-runtime-1.0-SNAPSHOT-jar-with-dependencies.jar -O /exporters/zeebe-exporter-adapter.jar; ls -al /exporters']
+        args: ['wget --no-check-certificate https://github.com/oleschoenburg/zeebe-exporter-runtime/releases/latest/download/zeebe-exporter-adapter-jar-with-dependencies.jar -O /exporters/zeebe-exporter-adapter.jar; ls -al /exporters']
         volumeMounts:
           - name: exporters
             mountPath: /exporters/

@@ -9,7 +9,7 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <maven.compler.release>17</maven.compler.release>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <version.zeebe>8.2.0</version.zeebe>
     </properties>
@@ -193,6 +193,7 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <finalName>zeebe-exporter-adapter</finalName>
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
