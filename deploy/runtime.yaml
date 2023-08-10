@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zeebe-exporter-runtime
+  labels:
+    app: zeebe-exporter-runtime
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zeebe-exporter-runtime
+  template:
+    metadata:
+      name: zeebe-exporter-runtime
+      labels:
+        app: zeebe-exporter-runtime
+    spec:
+      containers:
+        - name: zeebe-exporter-runtime
+          image: ghcr.io/oleschoenburg/zeebe-exporter-runtime:1.0-SNAPSHOT
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: "api"
+              protocol: TCP
+          env:
+            - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME
+              value: io.camunda.zeebe.exporter.ElasticsearchExporter
+            - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL
+              value: http://elasticsearch:9200
+      restartPolicy: Always
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: zeebe-exporter-runtime
+spec:
+    selector:
+        app: zeebe-exporter-runtime
+    ports:
+      - protocol: TCP
+        port: 8080
+        targetPort: 8080
