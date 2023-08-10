@@ -29,7 +29,11 @@ public final class Adapter implements Exporter {
   @Override
   public void configure(Context context) {
     if (channel == null) {
-      channel = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
+      final var arguments = context.getConfiguration().getArguments();
+      channel =
+          ManagedChannelBuilder.forTarget(arguments.get("target").toString())
+              .usePlaintext()
+              .build();
     }
     client = ExporterGrpc.newStub(channel);
   }
