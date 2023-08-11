@@ -1,7 +1,8 @@
 package io.camunda.zeebe.exporter.runtime;
 
 import io.camunda.zeebe.exporter.api.Exporter;
-import io.grpc.ServerBuilder;
+import io.grpc.Grpc;
+import io.grpc.InsecureServerCredentials;
 import java.io.IOException;
 import java.util.*;
 import org.slf4j.Logger;
@@ -11,20 +12,22 @@ public class Runtime {
   private static final Logger LOG = LoggerFactory.getLogger(Runtime.class);
   public static final int PORT = 8080;
 
-  public static void main(String[] args)
+  public static void main(final String[] args)
       throws InterruptedException, IOException, ClassNotFoundException {
     final Map<String, Object> configuration = parseConfiguration(System.getenv());
     LOG.info("Parsed configuration for exporters {}", configuration);
     final var descriptors = buildExporterDescriptors(configuration);
     final var server =
-        ServerBuilder.forPort(PORT).addService(new ExporterService(descriptors)).build();
-    server.start();
+        Grpc.newServerBuilderForPort(PORT, InsecureServerCredentials.create())
+            .addService(new ExporterService(descriptors))
+            .build()
+            .start();
     LOG.info("Started exporter runtime on port {}", PORT);
     server.awaitTermination();
   }
 
   private static LinkedList<ExporterDescriptor> buildExporterDescriptors(
-      Map<String, Object> configuration) throws ClassNotFoundException {
+      final Map<String, Object> configuration) throws ClassNotFoundException {
     final var descriptors = new LinkedList<ExporterDescriptor>();
     for (final var exporter : configuration.entrySet()) {
       final var exporterName = exporter.getKey();
@@ -41,7 +44,7 @@ public class Runtime {
     return descriptors;
   }
 
-  public static Map<String, Object> parseConfiguration(Map<String, String> env) {
+  public static Map<String, Object> parseConfiguration(final Map<String, String> env) {
     final var configuration = new HashMap<String, Object>();
     for (final var key : env.keySet()) {
       final var prefix = "ZEEBE_BROKER_EXPORTERS_";
@@ -56,7 +59,7 @@ public class Runtime {
         for (final var elem : path) {
           final var existing =
               current.computeIfAbsent(elem.toLowerCase(), k -> new HashMap<String, Object>());
-          if (existing instanceof Map<?, ?> existingMap) {
+          if (existing instanceof final Map<?, ?> existingMap) {
             current = (HashMap<String, Object>) existingMap;
           } else {
             throw new RuntimeException("Invalid configuration");

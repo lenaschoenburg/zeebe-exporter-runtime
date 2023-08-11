@@ -27,7 +27,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
   private final ScheduledExecutorService executorService;
   private StreamObserver<ExporterAcknowledgment> responseObserver;
 
-  public ExporterService(List<ExporterDescriptor> exporterDescriptors) {
+  public ExporterService(final List<ExporterDescriptor> exporterDescriptors) {
     mapper = new ObjectMapper().registerModule(new ZeebeProtocolModule());
     executorService = Executors.newSingleThreadScheduledExecutor();
     containers =
@@ -58,8 +58,8 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
 
   @Override
   public void open(
-      ExporterAcknowledgment lastAck,
-      StreamObserver<ExporterOuterClass.OpenResponse> responseObserver) {
+      final ExporterAcknowledgment lastAck,
+      final StreamObserver<ExporterOuterClass.OpenResponse> responseObserver) {
     LOG.info("Received openRequest with lastAck: '{}'", lastAck);
     final var metadata = lastAck.getMetadataMap();
 
@@ -76,17 +76,18 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
 
     LOG.info("Send response for open request.");
     responseObserver.onNext(ExporterOuterClass.OpenResponse.newBuilder().build());
+    responseObserver.onCompleted();
   }
 
   @Override
   public StreamObserver<ExporterOuterClass.Record> exportStream(
-      StreamObserver<ExporterAcknowledgment> responseObserver) {
+      final StreamObserver<ExporterAcknowledgment> responseObserver) {
     LOG.info("Export stream has initiated");
     this.responseObserver = responseObserver;
 
     return new StreamObserver<>() {
       @Override
-      public void onNext(ExporterOuterClass.Record record) {
+      public void onNext(final ExporterOuterClass.Record record) {
         LOG.info("Received new record '{}' to export via export stream", record);
         try {
           final Record<?> deserializedRecord =
@@ -94,7 +95,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
 
           // todo: do we need to have an object for each exporter?
           containers.values().forEach(context -> context.export(deserializedRecord));
-        } catch (IOException e) {
+        } catch (final IOException e) {
           // todo: what to do ?
 
           throw new RuntimeException(e);
@@ -102,7 +103,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
       }
 
       @Override
-      public void onError(Throwable throwable) {
+      public void onError(final Throwable throwable) {
         System.out.println("Error: " + throwable.getMessage());
       }
 
