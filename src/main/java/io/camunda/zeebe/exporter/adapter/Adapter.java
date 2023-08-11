@@ -23,7 +23,10 @@ public final class Adapter implements Exporter {
   private Controller controller;
   private ExporterOuterClass.ExporterAcknowledgment lastAck;
   private Context context;
+  private boolean isOpened = false;
   private long exportCounter = 0;
+  private ExporterGrpc.ExporterBlockingStub blockingClient;
+  private ExporterGrpc.ExporterStub asyncClient;
 
   public Adapter(final ManagedChannel channel) {
     this.channel = channel;
@@ -50,9 +53,16 @@ public final class Adapter implements Exporter {
       final var arguments = context.getConfiguration().getArguments();
       final String target = arguments.get("target").toString();
       LOG.info("Open channel for target '{}'", target);
-      channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
+      channel =
+          ManagedChannelBuilder.forTarget(target)
+              .enableRetry()
+              .maxRetryAttempts(10)
+              .usePlaintext()
+              .build();
     }
-    final var client = ExporterGrpc.newStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
+    blockingClient =
+        ExporterGrpc.newBlockingStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
+    asyncClient = ExporterGrpc.newStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
 
     this.controller = controller;
     responses = new ResponseObserver();
@@ -70,37 +80,22 @@ public final class Adapter implements Exporter {
             .orElse(ExporterOuterClass.ExporterAcknowledgment.newBuilder().build());
 
     LOG.info("Read lastAck '{}'", lastAck);
-
-    client.open(
-        lastAck,
-        new StreamObserver<>() {
-          @Override
-          public void onNext(final ExporterOuterClass.OpenResponse value) {
-            LOG.info("Send successful open request");
-            exportStream = client.exportStream(responses);
-          }
-
-          @Override
-          public void onError(final Throwable t) {
-            LOG.error("Failed sending open request", t);
-          }
-
-          @Override
-          public void onCompleted() {
-            LOG.info("Completed handling of open request");
-          }
-        });
   }
 
   @Override
   public void export(final Record<?> record) {
+    if (!isOpened) {
+      final var response = blockingClient.open(lastAck);
+      isOpened = true;
+      LOG.info("Opened stream: {}", response);
+      exportStream = asyncClient.exportStream(new ResponseObserver());
+    }
+
     final var r =
         ExporterOuterClass.Record.newBuilder()
             .setSerialized(ByteString.copyFromUtf8(record.toJson()))
             .build();
-    if (exportStream == null) {
-      throw new IllegalStateException("Stream not opened yet");
-    }
+
     if (exportCounter++ % 1000 == 0) {
       LOG.info("Exported {} record", exportCounter);
     }
