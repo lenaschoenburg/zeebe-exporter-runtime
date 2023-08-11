@@ -11,6 +11,7 @@ import io.camunda.zeebe.protocol.record.Record;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,15 +23,16 @@ public final class Adapter implements Exporter {
   private Controller controller;
   private ExporterOuterClass.ExporterAcknowledgment lastAck;
   private Context context;
+  private long exportCounter = 0;
 
-  public Adapter(ManagedChannel channel) {
+  public Adapter(final ManagedChannel channel) {
     this.channel = channel;
   }
 
   public Adapter() {}
 
   @Override
-  public void configure(Context context) {
+  public void configure(final Context context) {
     LOG.info("Configuring adapter: {}", context.getConfiguration());
     this.context = context;
   }
@@ -43,25 +45,25 @@ public final class Adapter implements Exporter {
   }
 
   @Override
-  public void open(Controller controller) {
+  public void open(final Controller controller) {
     if (channel == null) {
       final var arguments = context.getConfiguration().getArguments();
-      String target = arguments.get("target").toString();
+      final String target = arguments.get("target").toString();
       LOG.info("Open channel for target '{}'", target);
       channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
     }
-    ExporterGrpc.ExporterStub client = ExporterGrpc.newStub(channel);
+    final var client = ExporterGrpc.newStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
 
     this.controller = controller;
     responses = new ResponseObserver();
-    this.lastAck =
+    lastAck =
         controller
             .readMetadata()
             .map(
                 data -> {
                   try {
                     return ExporterOuterClass.ExporterAcknowledgment.parseFrom(data);
-                  } catch (InvalidProtocolBufferException e) {
+                  } catch (final InvalidProtocolBufferException e) {
                     throw new RuntimeException(e);
                   }
                 })
@@ -71,28 +73,37 @@ public final class Adapter implements Exporter {
 
     client.open(
         lastAck,
-        new StreamObserver<ExporterOuterClass.OpenResponse>() {
+        new StreamObserver<>() {
           @Override
-          public void onNext(ExporterOuterClass.OpenResponse value) {
+          public void onNext(final ExporterOuterClass.OpenResponse value) {
             LOG.info("Send successful open request");
+            exportStream = client.exportStream(responses);
           }
 
           @Override
-          public void onError(Throwable t) {}
+          public void onError(final Throwable t) {
+            LOG.error("Failed sending open request", t);
+          }
 
           @Override
-          public void onCompleted() {}
+          public void onCompleted() {
+            LOG.info("Completed handling of open request");
+          }
         });
-    exportStream = client.exportStream(responses);
   }
 
   @Override
-  public void export(Record<?> record) {
+  public void export(final Record<?> record) {
     final var r =
         ExporterOuterClass.Record.newBuilder()
             .setSerialized(ByteString.copyFromUtf8(record.toJson()))
             .build();
-    LOG.info("Export next record '{}' and send to export stream", r);
+    if (exportStream == null) {
+      throw new IllegalStateException("Stream not opened yet");
+    }
+    if (exportCounter++ % 1000 == 0) {
+      LOG.info("Exported {} record", exportCounter);
+    }
     exportStream.onNext(r);
   }
 
@@ -107,14 +118,14 @@ public final class Adapter implements Exporter {
   private final class ResponseObserver
       implements StreamObserver<ExporterOuterClass.ExporterAcknowledgment> {
     @Override
-    public void onNext(ExporterOuterClass.ExporterAcknowledgment value) {
+    public void onNext(final ExporterOuterClass.ExporterAcknowledgment value) {
       LOG.info("Received ack '{}' from exporter stream", value);
       lastAck = value;
       controller.updateLastExportedRecordPosition(value.getPosition(), value.toByteArray());
     }
 
     @Override
-    public void onError(Throwable t) {}
+    public void onError(final Throwable t) {}
 
     @Override
     public void onCompleted() {}
