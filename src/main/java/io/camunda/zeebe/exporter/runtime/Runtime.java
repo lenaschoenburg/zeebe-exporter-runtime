@@ -1,8 +1,7 @@
 package io.camunda.zeebe.exporter.runtime;
 
 import io.camunda.zeebe.exporter.api.Exporter;
-import io.grpc.Grpc;
-import io.grpc.InsecureServerCredentials;
+import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.util.*;
 import org.slf4j.Logger;
@@ -18,10 +17,7 @@ public class Runtime {
     LOG.info("Parsed configuration for exporters {}", configuration);
     final var descriptors = buildExporterDescriptors(configuration);
     final var server =
-        Grpc.newServerBuilderForPort(PORT, InsecureServerCredentials.create())
-            .addService(new ExporterService(descriptors))
-            .build()
-            .start();
+        ServerBuilder.forPort(PORT).addService(new ExporterService(descriptors)).build();
     LOG.info("Started exporter runtime on port {}", PORT);
     server.awaitTermination();
   }
