@@ -11,6 +11,7 @@ import io.camunda.zeebe.protocol.record.Record;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ public final class Adapter implements Exporter {
   private long exportCounter = 0;
   private ExporterGrpc.ExporterBlockingStub blockingClient;
   private ExporterGrpc.ExporterStub asyncClient;
+  private ConcurrentSkipListMap<Long, Record> recordBuffer;
 
   public Adapter(final ManagedChannel channel) {
     this.channel = channel;
@@ -75,6 +77,7 @@ public final class Adapter implements Exporter {
             .orElse(ExporterOuterClass.ExporterAcknowledgment.newBuilder().build());
 
     LOG.info("Read lastAck '{}'", lastAck);
+    recordBuffer = new ConcurrentSkipListMap<Long, Record>();
   }
 
   @Override
@@ -84,6 +87,20 @@ public final class Adapter implements Exporter {
       isOpened = true;
       LOG.info("Opened stream");
       exportStream = asyncClient.exportStream(new ResponseObserver());
+
+      if (!recordBuffer.isEmpty()) {
+        recordBuffer
+            .values()
+            .forEach(
+                r -> {
+                  LOG.info("Replay record from buffer, with pos {}", r.getPosition());
+                  final var seriliazedRecord =
+                      ExporterOuterClass.Record.newBuilder()
+                          .setSerialized(ByteString.copyFromUtf8(r.toJson()))
+                          .build();
+                  exportStream.onNext(seriliazedRecord);
+                });
+      }
     }
 
     final var r =
@@ -91,6 +108,7 @@ public final class Adapter implements Exporter {
             .setSerialized(ByteString.copyFromUtf8(record.toJson()))
             .build();
 
+    recordBuffer.put(record.getPosition(), record);
     if (exportCounter++ % 1000 == 0) {
       LOG.info("Exported {} record", exportCounter);
     }
@@ -110,6 +128,12 @@ public final class Adapter implements Exporter {
     @Override
     public void onNext(final ExporterOuterClass.ExporterAcknowledgment value) {
       LOG.info("Received ack '{}' from exporter stream", value);
+
+      long position = value.getPosition();
+      final var mapToClear = recordBuffer.headMap(position, true);
+      LOG.info("Cleaned {} records from buffer", mapToClear.size());
+      mapToClear.clear();
+
       lastAck = value;
       controller.updateLastExportedRecordPosition(value.getPosition(), value.toByteArray());
     }
@@ -117,6 +141,9 @@ public final class Adapter implements Exporter {
     @Override
     public void onError(final Throwable t) {
       LOG.error("Failed stream", t);
+      isOpened = false;
+      exportStream.onCompleted();
+      exportStream = null;
     }
 
     @Override

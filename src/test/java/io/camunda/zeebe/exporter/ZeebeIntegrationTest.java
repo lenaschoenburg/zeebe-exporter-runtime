@@ -33,7 +33,8 @@ public class ZeebeIntegrationTest {
   @Container
   final ElasticsearchContainer elasticSearch =
       new ElasticsearchContainer()
-          //            .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("ELASTICSEARCH")) it is very verbose
+          //            .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("ELASTICSEARCH")) it
+          // is very verbose
           .withNetworkAliases("elasticsearch")
           .withNetwork(network);
 
@@ -43,7 +44,7 @@ public class ZeebeIntegrationTest {
               DockerImageName.parse("ghcr.io/oleschoenburg/zeebe-exporter-runtime:1.0-SNAPSHOT"))
           .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("RUNTIME"))
           .withNetworkAliases("runtime")
-              .dependsOn(elasticSearch)
+          .dependsOn(elasticSearch)
           .withNetwork(network)
           .withExposedPorts(8080)
           .withEnv(
@@ -56,7 +57,7 @@ public class ZeebeIntegrationTest {
   final ZeebeContainer zeebe =
       new ZeebeContainer()
           .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("ZEEBE"))
-              .dependsOn(exporterRuntime)
+          .dependsOn(exporterRuntime)
           .withNetwork(network)
           .withNetworkAliases("zeebe")
           .withCopyToContainer(
