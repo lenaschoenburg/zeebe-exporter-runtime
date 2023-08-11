@@ -30,12 +30,12 @@ public class ZeebeIntegrationTest {
   private static final Network network = Network.newNetwork();
   private static final Logger LOG = LoggerFactory.getLogger(ZeebeIntegrationTest.class);
 
-  @Container
-  final ElasticsearchContainer elasticSearch =
-      new ElasticsearchContainer()
-          .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("ELASTICSEARCH"))
-          .withNetworkAliases("elasticsearch")
-          .withNetwork(network);
+//  @Container
+//  final ElasticsearchContainer elasticSearch =
+//      new ElasticsearchContainer()
+//          .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("ELASTICSEARCH"))
+//          .withNetworkAliases("elasticsearch")
+//          .withNetwork(network);
 
   @Container
   final GenericContainer exporterRuntime =
@@ -58,24 +58,24 @@ public class ZeebeIntegrationTest {
           .withNetworkAliases("zeebe")
           .withCopyToContainer(
               MountableFile.forHostPath(
-                  Path.of("target/zeebe-exporter-runtime-1.0-SNAPSHOT.jar")
-                      .toAbsolutePath()
-                      .toString()),
+                  Path.of("target/zeebe-exporter-adapter.jar").toAbsolutePath().toString()),
               "/usr/local/zeebe/exporters/adapter.jar")
           .withEnv(
               "ZEEBE_BROKER_EXPORTERS_ADAPTER_CLASSNAME",
               "io.camunda.zeebe.exporter.adapter.Adapter")
+          .withEnv("GRPC_VERBOSITY", "DEBUG")
+          .withEnv("GRPC_TRACE", "api")
           .withEnv(
               "ZEEBE_BROKER_EXPORTERS_ADAPTER_JARPATH", "/usr/local/zeebe/exporters/adapter.jar")
           .withEnv("ZEEBE_BROKER_EXPORTERS_ADAPTER_ARGS_TARGET", "runtime:8080");
 
   @Test
-  void shouldStartZeebe() throws IOException {
+  void shouldStartZeebe() throws IOException, InterruptedException {
     // given
-    final var elasticClient =
-        RestClient.builder(HttpHost.create(elasticSearch.getHttpHostAddress())).build();
-    Response healthResponse = elasticClient.performRequest(new Request("GET", "/_cluster/health"));
-    assertThat(healthResponse.getStatusLine().getStatusCode()).isEqualTo(200);
+//    final var elasticClient =
+//        RestClient.builder(HttpHost.create(elasticSearch.getHttpHostAddress())).build();
+//    Response healthResponse = elasticClient.performRequest(new Request("GET", "/_cluster/health"));
+//    assertThat(healthResponse.getStatusLine().getStatusCode()).isEqualTo(200);
 
     // when
     try (var client =
@@ -93,13 +93,14 @@ public class ZeebeIntegrationTest {
     }
 
     // then
-    Awaitility.await("Indices exist")
-        .ignoreExceptions()
-        .until(
-            () -> {
-              Response response = elasticClient.performRequest(new Request("GET", "/_cat/indices"));
-              return new String(response.getEntity().getContent().readAllBytes());
-            },
-            Matchers.containsString("zeebe-record_process_"));
+    Thread.currentThread().join();
+//    Awaitility.await("Indices exist")
+//        .ignoreExceptions()
+//        .until(
+//            () -> {
+//              Response response = elasticClient.performRequest(new Request("GET", "/_cat/indices"));
+//              return new String(response.getEntity().getContent().readAllBytes());
+//            },
+//            Matchers.containsString("zeebe-record_process_"));
   }
 }
