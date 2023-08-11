@@ -18,6 +18,7 @@ public class Runtime {
     final var descriptors = buildExporterDescriptors(configuration);
     final var server =
         ServerBuilder.forPort(PORT).addService(new ExporterService(descriptors)).build();
+    server.start();
     LOG.info("Started exporter runtime on port {}", PORT);
     server.awaitTermination();
   }

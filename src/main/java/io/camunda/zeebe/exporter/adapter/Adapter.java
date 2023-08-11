@@ -53,16 +53,11 @@ public final class Adapter implements Exporter {
       final var arguments = context.getConfiguration().getArguments();
       final String target = arguments.get("target").toString();
       LOG.info("Open channel for target '{}'", target);
-      channel =
-          ManagedChannelBuilder.forTarget(target)
-              .enableRetry()
-              .maxRetryAttempts(10)
-              .usePlaintext()
-              .build();
+      channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
     }
     blockingClient =
-        ExporterGrpc.newBlockingStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
-    asyncClient = ExporterGrpc.newStub(channel).withDeadlineAfter(1000, TimeUnit.MILLISECONDS);
+        ExporterGrpc.newBlockingStub(channel).withDeadlineAfter(10000, TimeUnit.MILLISECONDS);
+    asyncClient = ExporterGrpc.newStub(channel).withDeadlineAfter(10000, TimeUnit.MILLISECONDS);
 
     this.controller = controller;
     responses = new ResponseObserver();
@@ -85,9 +80,9 @@ public final class Adapter implements Exporter {
   @Override
   public void export(final Record<?> record) {
     if (!isOpened) {
-      final var response = blockingClient.open(lastAck);
+      final var response = blockingClient.withWaitForReady().open(lastAck);
       isOpened = true;
-      LOG.info("Opened stream: {}", response);
+      LOG.info("Opened stream");
       exportStream = asyncClient.exportStream(new ResponseObserver());
     }
 
@@ -120,9 +115,13 @@ public final class Adapter implements Exporter {
     }
 
     @Override
-    public void onError(final Throwable t) {}
+    public void onError(final Throwable t) {
+      LOG.error("Failed stream", t);
+    }
 
     @Override
-    public void onCompleted() {}
+    public void onCompleted() {
+      LOG.info("Completed stream");
+    }
   }
 }
