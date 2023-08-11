@@ -26,6 +26,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
   private final Map<String, ExporterContainer> containers;
   private final ScheduledExecutorService executorService;
   private StreamObserver<ExporterAcknowledgment> responseObserver;
+  private boolean hasOpenedBefore = false;
 
   public ExporterService(final List<ExporterDescriptor> exporterDescriptors) {
     mapper = new ObjectMapper().registerModule(new ZeebeProtocolModule());
@@ -64,6 +65,10 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
     final var metadata = lastAck.getMetadataMap();
 
     for (final var container : containers.values()) {
+      if (hasOpenedBefore) {
+        container.close();
+      }
+
       final var exporterId = container.getId();
       final var bytes = metadata.get(exporterId);
       byte[] exporterMetadata = null;
@@ -77,6 +82,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
     LOG.info("Send response for open request.");
     responseObserver.onNext(ExporterOuterClass.OpenResponse.newBuilder().build());
     responseObserver.onCompleted();
+    hasOpenedBefore = true;
   }
 
   @Override
@@ -95,9 +101,9 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
 
           // todo: do we need to have an object for each exporter?
           containers.values().forEach(context -> context.export(deserializedRecord));
-        } catch (final IOException e) {
-          // todo: what to do ?
-
+        } catch (final Exception e) {
+          // elastic search may dead - we need to send it to the Adapter so the stream is recreated and retried
+          responseObserver.onError(e);
           throw new RuntimeException(e);
         }
       }

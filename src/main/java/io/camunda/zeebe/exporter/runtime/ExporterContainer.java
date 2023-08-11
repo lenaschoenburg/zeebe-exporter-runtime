@@ -127,4 +127,8 @@ public class ExporterContainer implements Controller, Context {
   public void setFilter(RecordFilter filter) {
     this.filter = filter;
   }
+
+  public void close() {
+    exporter.close();
+  }
 }
