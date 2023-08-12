@@ -19,7 +19,7 @@
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-bom</artifactId>
-                <version>1.54.0</version>
+                <version>1.57.1</version>
                 <scope>import</scope>
                 <type>pom</type>
             </dependency>
