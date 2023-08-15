@@ -9,7 +9,6 @@ import io.camunda.zeebe.exporter.ExporterOuterClass.ExporterAcknowledgment;
 import io.camunda.zeebe.protocol.jackson.ZeebeProtocolModule;
 import io.camunda.zeebe.protocol.record.Record;
 import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -40,7 +39,7 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
             .collect(Collectors.toMap(ExporterContainer::getId, Function.identity()));
   }
 
-  public void updateExporterPositionAndMetadata() {
+  private void updateExporterPositionAndMetadata() {
     final var newPosition =
         containers.values().stream().mapToLong(ExporterContainer::getPosition).min().orElseThrow();
     final var metadata =
@@ -88,34 +87,35 @@ public final class ExporterService extends ExporterGrpc.ExporterImplBase {
   @Override
   public StreamObserver<ExporterOuterClass.Record> exportStream(
       final StreamObserver<ExporterAcknowledgment> responseObserver) {
-    LOG.info("Export stream has initiated");
+    LOG.info("Initialized export stream");
     this.responseObserver = responseObserver;
 
     return new StreamObserver<>() {
       @Override
       public void onNext(final ExporterOuterClass.Record record) {
-        LOG.info("Received new record '{}' to export via export stream", record);
+        LOG.trace("Received new record {}", record);
         try {
-          final Record<?> deserializedRecord =
-              mapper.readValue(record.getSerialized().toByteArray(), new TypeReference<>() {});
+          final var deserializedRecord =
+              mapper.readValue(
+                  record.getSerialized().toByteArray(), new TypeReference<Record<?>>() {});
 
           // todo: do we need to have an object for each exporter?
           containers.values().forEach(context -> context.export(deserializedRecord));
         } catch (final Exception e) {
-          // elastic search may dead - we need to send it to the Adapter so the stream is recreated and retried
+          // elastic search may dead - we need to send it to the Adapter so the stream is recreated
+          // and retried
           responseObserver.onError(e);
-          throw new RuntimeException(e);
         }
       }
 
       @Override
       public void onError(final Throwable throwable) {
-        System.out.println("Error: " + throwable.getMessage());
+        LOG.error("Stream error", throwable);
       }
 
       @Override
       public void onCompleted() {
-        System.out.println("Stream completed");
+        LOG.info("Stream completed");
       }
     };
   }

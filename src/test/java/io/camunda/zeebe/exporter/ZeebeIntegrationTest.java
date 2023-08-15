@@ -1,7 +1,5 @@
 package io.camunda.zeebe.exporter;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import io.camunda.zeebe.client.ZeebeClient;
 import io.camunda.zeebe.model.bpmn.Bpmn;
 import io.zeebe.containers.ZeebeContainer;
@@ -32,15 +30,14 @@ public class ZeebeIntegrationTest {
 
   @Container
   final ElasticsearchContainer elasticSearch =
-      new ElasticsearchContainer()
-          //            .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("ELASTICSEARCH")) it
-          // is very verbose
+      new ElasticsearchContainer(
+              DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2"))
           .withNetworkAliases("elasticsearch")
           .withNetwork(network);
 
   @Container
-  final GenericContainer exporterRuntime =
-      new GenericContainer(
+  final GenericContainer<?> exporterRuntime =
+      new GenericContainer<>(
               DockerImageName.parse("ghcr.io/oleschoenburg/zeebe-exporter-runtime:1.0-SNAPSHOT"))
           .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("RUNTIME"))
           .withNetworkAliases("runtime")
@@ -66,7 +63,7 @@ public class ZeebeIntegrationTest {
               "/usr/local/zeebe/exporters/adapter.jar")
           .withEnv(
               "ZEEBE_BROKER_EXPORTERS_ADAPTER_CLASSNAME",
-              "io.camunda.zeebe.exporter.adapter.Adapter")
+              "io.camunda.zeebe.exporter.adapter.GrpcExporter")
           .withEnv(
               "ZEEBE_BROKER_EXPORTERS_ADAPTER_JARPATH", "/usr/local/zeebe/exporters/adapter.jar")
           .withEnv("ZEEBE_BROKER_EXPORTERS_ADAPTER_ARGS_TARGET", "runtime:8080");
@@ -74,34 +71,34 @@ public class ZeebeIntegrationTest {
   @Test
   void shouldStartZeebe() throws IOException {
     // given
-    final var elasticClient =
-        RestClient.builder(HttpHost.create(elasticSearch.getHttpHostAddress())).build();
-    Response healthResponse = elasticClient.performRequest(new Request("GET", "/_cluster/health"));
-    assertThat(healthResponse.getStatusLine().getStatusCode()).isEqualTo(200);
+    try (final var elasticClient =
+        RestClient.builder(HttpHost.create(elasticSearch.getHttpHostAddress())).build()) {
 
-    // when
-    try (final var client =
-        ZeebeClient.newClientBuilder()
-            .usePlaintext()
-            .gatewayAddress(zeebe.getExternalGatewayAddress())
-            .usePlaintext()
-            .build()) {
-      client
-          .newDeployResourceCommand()
-          .addProcessModel(
-              Bpmn.createExecutableProcess().startEvent().endEvent().done(), "simple.bpmn")
-          .send()
-          .join();
+      // when
+      try (final var zeebeClient =
+          ZeebeClient.newClientBuilder()
+              .usePlaintext()
+              .gatewayAddress(zeebe.getExternalGatewayAddress())
+              .usePlaintext()
+              .build()) {
+        zeebeClient
+            .newDeployResourceCommand()
+            .addProcessModel(
+                Bpmn.createExecutableProcess().startEvent().endEvent().done(), "simple.bpmn")
+            .send()
+            .join();
+      }
+
+      // then
+      Awaitility.await("Indices exist")
+          .ignoreExceptions()
+          .until(
+              () -> {
+                final Response response =
+                    elasticClient.performRequest(new Request("GET", "/_cat/indices"));
+                return new String(response.getEntity().getContent().readAllBytes());
+              },
+              Matchers.containsString("zeebe-record_process_"));
     }
-
-    // then
-    Awaitility.await("Indices exist")
-        .ignoreExceptions()
-        .until(
-            () -> {
-              Response response = elasticClient.performRequest(new Request("GET", "/_cat/indices"));
-              return new String(response.getEntity().getContent().readAllBytes());
-            },
-            Matchers.containsString("zeebe-record_process_"));
   }
 }
